@@ -3,7 +3,7 @@ title: "Chapter 1 - Introduction to Data"
 author: ""
 output:
     pdf_document:
-        extra_dependencies: ["geometry", "multicol", "multirow"]
+        extra_dependencies: ["geometry", "multicol", "multiro"]
 ---
 
 ```{r setup, include=FALSE}
