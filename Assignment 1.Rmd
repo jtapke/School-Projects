@@ -1,0 +1,46 @@
+---
+title: "Assignment 1 - Loading Data into a Data Frame"
+author: "Jordan Tapke" 
+date: "8/28/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### What 12 Months Of Record-Setting Temperatures Looks Like Across The U.S.
+
+This article looks at the weather data during a period of  “record setting temperatures” between July 2014 through June 2015 for various U.S. cities. The analysis produced charts that showed historical record temperature, average high and low temperatures, and the actual high and low temperatures for the time period mentioned above. It found that while this period of time was the hottest on record at the time the data was recorded, the high temperatures were not experienced uniformly across U.S. cities.  [Article here](https://fivethirtyeight.com/features/what-12-months-of-record-setting-temperatures-looks-like-across-the-u-s/).
+
+```{r}
+# Read data from github
+weather <- read.csv(url("https://raw.githubusercontent.com/jtapke/School-Projects/master/KNYC.csv"))
+# Subset data to 3 needed columns
+max.temp.columns <- c("date", "record_max_temp", "actual_max_temp")
+max.temp <- weather[max.temp.columns]
+```
+
+
+### NYC Max Temperatures
+
+```{r}
+# Create variables and convert to correct data type
+x = as.Date(max.temp$date, "%Y-%m-%d")
+y1 = as.numeric(max.temp$actual_max_temp)
+y2 = as.numeric(max.temp$record_max_temp)
+# Create a first line
+plot(x,y1, type = "l", frame = TRUE, col = 53, xlab = "Date", ylab = "Temperature", ylim = c(0,100))
+# Add a second line
+lines(x, y2, col = 90)
+# Add a legend to the plot
+legend("bottomleft", legend=c("Historical Max", "Current Year Max"),
+       col=c("90", "53"), lty = 1)
+```
+
+### Conclusion
+
+The majority of the record setting temperatures in the initial analysis are record highs. I believe that by using a simpler analysis(current year maximum temperatures vs. historical maximum temperatures) a similar conclusion can be drawn as to the one in the article. If the chart created above was applied to all of the other cities in the article, the reader would  still be able to conclude that the 12 month period in 2014-15 had record high temperatures in some cities but, not for all of them equally. This is why I chose to subset only the date, record_max_temp, and actual_max_temp columns from the original data set making the chart easier to read with the omission of record low temperature data.
+
