@@ -1,0 +1,149 @@
+---
+title: 'Assignment 2: SQL & R'
+author: "Jordan Tapke"
+date: "9/3/2020"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Introduction
+
+The Assignment requirements included:
+
+  1. Survey friends on 6 movie titles and ask them to rank the titles from 1 to 5
+  2. Import the collected data into R to store in a relational database
+  3. Import the data from database into R for analysis
+
+### Survey
+
+To collect the data on movies I created a survey using [Google forms.](https://forms.gle/spNTAcBCkJv5zKFN8)
+
+Survey results are available on [Github](https://github.com/jtapke/School-Projects/blob/master/MovieSurveyResponses.csv)
+
+### Store Data in MySQL Database
+
+I took these steps to upload the data into a MySQL database in Google Cloud:
+
+1. Create connection to the database without saving password.
+2. Create a table in the database for the data to be inserted in.
+3. Import the data into a dataframe from the CSV file and amend the column names.
+2. Write the dataframe to the database.
+
+```{R Connection}
+library(RMariaDB)
+
+#Create Connection to database without showing password
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = 'movie_preferences',
+                 user = 'jtapke', 
+                 password = rstudioapi::askForPassword("Database password"), 
+                 host = '34.75.89.1')
+```
+
+OPTION 1: CREATE TABLE IN DATABASE
+```{r results='hide'}
+#Create Table in database
+dbSendQuery(con, "
+CREATE TABLE IF NOT EXISTS movie_preferences.moviesurvey (
+survey_id INT,
+time CHAR(100),
+parasite INT,
+joker INT,
+avengers_end_game INT,
+crazy_rich_asians INT,
+black_panther INT,
+deadpool INT
+);
+")
+```
+OPTION 2: CREATE NORMALIZED SET OF TABLES IN DATABASE
+```{r results='hide'}
+#Create Tables in database
+dbSendQuery(con, "
+CREATE TABLE IF NOT EXISTS movie_preferences.surveyinfo (
+survey_id INT NOT NULL AUTO_INCREMENT,
+time CHAR(100),
+PRIMARY KEY (survey_id)
+);
+")
+
+dbSendQuery(con, "
+CREATE TABLE IF NOT EXISTS movie_preferences.movies (
+movie_id INT NOT NULL AUTO_INCREMENT,
+movie CHAR(100),
+PRIMARY KEY (movie_id)
+);
+")
+
+dbSendQuery(con, "
+CREATE TABLE IF NOT EXISTS movie_preferences.ratings (
+survey_id INT,
+movie_id INT,
+rating INT,
+FOREIGN KEY (survey_id) REFERENCES surveyinfo(survey_id),
+FOREIGN KEY (movie_id) REFERENCES movies(movie_id)
+);
+")
+```
+
+```{R Importing Data}
+#Create dataframe from csv file
+moviesurvey <- read.csv(url("https://raw.githubusercontent.com/jtapke/School-Projects/master/MovieSurveyResponses.csv"))
+
+#Change column names to match those in the database
+colnames(moviesurvey) <- c("survey_id","time", "parasite","joker","avengers_end_game","crazy_rich_asians","black_panther","deadpool")
+
+head(moviesurvey)
+```
+
+```{R Writing Data to Table}
+#Write the dataframe to the database table created
+dbWriteTable(con, name = "moviesurvey", value = moviesurvey, append = TRUE)
+```
+
+### Importing and Preparing Data
+
+I took these steps to import and prepare the data for analysis:
+
+1. Import table from database into dataframe.
+2. Tidy up the data so there are now "movie" and "rating" columns while dropping the null values.
+
+```{R Clean Up Data}
+#Import table from database into dataframe
+library(tidyr)
+movieratings <- dbGetQuery(con, "SELECT * FROM moviesurvey")
+
+long_movieratings <- movieratings%>% pivot_longer(3:8, names_to = 'movie', values_to = 'rating', values_drop_na = TRUE)
+long_movieratings
+```
+
+
+### Analysis
+Below allows us to visualize the data in a grouped bar plot. 
+
+
+```{r histogram of ratings}
+library(tidyverse)
+
+ggplot(long_movieratings, aes(movie, rating), group = rating) +
+  geom_bar(aes(fill=factor(rating)), position = "dodge", stat = "identity", width=.9)+
+  theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_discrete(name = "Rating")
+
+
+```
+
+### Recomending Movies
+
+One way we can use this data to recommend movie titles to the survey participants is to add a genre column to the movie table in the database. We can then match people who highly rated one genre to movie titles of the same genre. For Example: Survey participate #1 rated "Black Panther" as 5. Since this is a part of the superhero genre, we can recommend them another superhero movie that they have not watched such as "Joker."
+
+### Conclusion
+
+After completing this project I would recommend using scenario #2: creating a normalized database. This allows for more information to be added, such as a genre column, to the database without being redundant. 
