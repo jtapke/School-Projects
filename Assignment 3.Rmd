@@ -1,0 +1,111 @@
+---
+title: "Assignment 3: Working with REGEXP"
+author: "Jordan Tapke"
+date: "9/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## #1
+
+Scrape table from fivethirtyeight site
+```{r table-capture}
+#load rvest for webscraping
+library(rvest)
+
+url <- "https://projects.fivethirtyeight.com/mid-levels/college-majors/index.html?v=3&initialWidth=575&childId=framediv&parentTitle=The%20Economic%20Guide%20To%20Picking%20A%20College%20Major%20%7C%20FiveThirtyEight&parentUrl=https%3A%2F%2Ffivethirtyeight.com%2Ffeatures%2Fthe-economic-guide-to-picking-a-college-major%2F%22"
+
+df_majors <- url %>%
+  read_html() %>%
+  html_nodes(css = "#example") %>%
+  html_table(fill = TRUE)
+```
+
+Clean up the table
+```{r clean-table}
+#convert to data frame
+df_majors <- data.frame(df_majors[[1]])
+
+#change column names to first row values
+colnames(df_majors) <- as.character(unlist(df_majors[1,]))
+
+#delete first row
+df_majors <- df_majors[-1, ]
+```
+
+Identify majors with "DATA" or "STATISTICS" using regex
+```{r identify-majors}
+library(stringr)
+
+#convert to majors to vector of strings
+majors <- as.vector(df_majors[,2])
+
+#extract majors that contains "DATA" or "STATISTICS"
+datastat_majors <- str_subset(majors, ".*(Data|Statistics).*")
+
+datastat_majors
+```
+## #2
+```{r convert}
+#input
+original <- c('[1] "bell pepper"  "bilberry"     "blackberry"   "blood orange" 
+          [5] "blueberry"    "cantaloupe"   "chili pepper" "cloudberry" 
+          [9] "elderberry"   "lime"         "lychee"       "mulberry"    
+          [13] "olive"        "salal berry"')
+
+#extract words from string
+extracted <- str_extract_all(original, '(?<=")\\w+\\s?\\w+?(?=")')
+
+#generate new string of r script
+newstring <- str_c(as.character(extracted), sep = ",")
+
+message(newstring)
+
+```
+## #3
+```{r subsett}
+test <- c("aaa", "baab", "baba", "babcb", "abcdcba" )
+#1
+str_subset(test, "(.)\\1\\1")
+#2
+str_subset(test, "(.)(.)\\2\\1")
+#3
+str_subset(test, "(..)\\1")
+#4
+str_subset(test, "(.).\\1.\\1")
+#5
+str_subset(test, "(.)(.)(.).*\\3\\2\\1")
+```
+1. One character repeating three times in a row.
+
+2. Two characters in the first two places which are then reversed in places 3 & 4. 
+
+3. Two characters which are then repeated once.
+
+4. One character, another by any character, the first character, any other character, then the first character again.
+
+5. Three characters, zero or more characters, the three first characters but reversed.
+
+
+## #4
+
+1. "^(.).*\\1$"
+
+2. "([A-Za-z][A-Za-z]).*\\1"
+
+3. "([a-z]).*\\1.*\\1"
+
+```{r test}
+test <-c("dread", "church", "eleven")
+
+#1
+str_subset(test, "^(.).*\\1$")
+#2
+str_subset(test, "([A-Za-z][A-Za-z]).*\\1")
+#3
+str_subset(test, "([a-z]).*\\1.*\\1")
+```
+
