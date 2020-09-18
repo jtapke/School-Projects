@@ -1,0 +1,98 @@
+---
+title: "Project 1"
+author: "Jordan Tapke"
+date: "9/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Create Connection to text file
+```{r, message= FALSE}
+library(tidyverse)
+library(stringi)
+library(rlist)
+library(DataCombine)
+con <- url("https://raw.githubusercontent.com/jtapke/School-Projects/master/tournamentinfo.txt")
+```
+
+### Separate Needed Strings using Regexp
+```{r}
+tournament_data <- readLines(con, ok = TRUE)
+
+tournament_data_noline <- str_remove_all(tournament_data, "^-*")
+
+tournament_data_noline <- stri_remove_empty_na(tournament_data_noline)
+
+tournament_data_noline <- str_split(tournament_data_noline, "\\|")
+
+tournament_data_noline <- list.remove(tournament_data_noline, c(1,2))
+
+head(tournament_data_noline, 2)
+```
+### Create Data Frames
+```{r}
+df_player <-data.frame(matrix(ncol = 5, nrow = 0))
+df_rounds <-data.frame(matrix(ncol = 2, nrow = 0))
+```
+### Put Strings into Data Frames
+```{r}
+for (i in 1:(length(tournament_data_noline)-1)) {
+  if (!i%%2) {
+  next  
+  } 
+  line_1 <- trimws(tournament_data_noline[[i]], which =  "both")
+  line_2 <- trimws(tournament_data_noline[[i+1]], which = "both")
+  
+  for (j in 4:10) {
+    id <- str_extract(line_1[j], "(?<=( ))(\\d+)")
+    if(!is.na(id)){
+      df_rounds <- InsertRow(df_rounds, list(
+        as.numeric(line_1[1]),
+        as.numeric(id)))
+
+    }
+  }
+  
+  df_player <- InsertRow(df_player, list(
+                        as.numeric(line_1[1]),
+                        line_1[2],
+                        line_2[1],
+                        as.numeric(line_1[3]),
+                        as.numeric(str_extract(line_2[2], "(?<=(R: \\s?))(\\d+)(?=[^\\d])"))
+  ))
+}
+head(df_player)
+head(df_rounds)
+```
+### Rename Columns
+```{r}
+xplayer <- c("id", "name", "state", "totalpts", "pre")
+xrounds <- c("id", "opp")
+colnames(df_player) <- xplayer
+colnames(df_rounds) <- xrounds
+```
+### Join Data Frames Together
+```{r}
+df_comb <- left_join(df_rounds, df_player[,c("id", "pre")], by = c("opp" = "id"))
+
+df_mean <- aggregate(df_comb[,3], list(df_comb$id), mean)
+
+xavg <- c("id", "avgpre_opp")
+colnames(df_mean) <- xavg
+
+df_final <- inner_join(df_player[,c("id", "name", "totalpts", "state", "pre")],df_mean, by = c("id" = "id"))
+
+df_final <- subset(df_final, select = -c(id))
+
+df_final[,5] <-round(df_final[,5],0)
+
+head(df_final)
+```
+### Create CSV File
+```{r}
+write.csv(df_final,"C:\\school_projects\\project_1.csv", row.names = FALSE)
+
+```
