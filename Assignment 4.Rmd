@@ -1,0 +1,164 @@
+---
+title: "Assignment 4: Tidying and Transforming Data"
+author: "Jordan Tapke"
+date: "9/24/2020"
+output:  
+  html_document: 
+    toc: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Overview
+This assignment required tidying and transforming data that was in "wide" format into "long" format. Below is the graphic with the original data provided. 
+
+```{r, echo=FALSE}
+url <- 'https://raw.githubusercontent.com/jtapke/School-Projects/master/week5image.PNG'
+```
+
+<center><img src="`r url`" width="400" height="200" alt="Original Data"></center>
+
+I put this data into a normalized database using Google Cloud. The database contains 3 tables: *airlines*, *ontime*, & *delayed* which are all linked by the "airline-id" key. I chose to keep the rest of the data in "wide" format waiting to tidy & transform it once I import into R for on time performance analysis.
+
+### Create normalized database
+```{r, results='hide', warning=FALSE}
+library(RMariaDB)
+
+#Create Connection to database without showing password
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = 'my_db',
+                 user = Sys.getenv("userid"), 
+                 password = Sys.getenv("pwd"), 
+                 host = '34.123.100.43')
+
+#Create Tables in database
+dbSendQuery(con, "
+ CREATE TABLE IF NOT EXISTS my_db.airlines (
+ airline_id INT NOT NULL AUTO_INCREMENT,
+ airline CHAR(100),
+ PRIMARY KEY (airline_id)
+ );
+ ")
+
+dbSendQuery(con, "
+ CREATE TABLE IF NOT EXISTS my_db.ontime (
+ airline_id INT,
+ los_angeles INT,
+ phoenix INT,
+ san_diego INT,
+ san_francisco INT,
+ seattle INT,
+ FOREIGN KEY (airline_id) REFERENCES airlines (airline_id)
+ );
+ ")
+
+dbSendQuery(con, "
+ CREATE TABLE IF NOT EXISTS my_db.delayed (
+ airline_id INT,
+ los_angeles INT,
+ phoenix INT,
+ san_diego INT,
+ san_francisco INT,
+ seattle INT,
+ FOREIGN KEY (airline_id) REFERENCES airlines (airline_id)
+ );
+ ")
+#data frames with data from image
+airlines_df <- data.frame(airline = c("Alaska","AM West"))
+ontime_df <- data.frame(airline_id = c(1,2),
+                        los_angeles = c(497,694),
+                        phoenix = c(221,4840) ,
+                        san_diego = c(212,383) ,
+                        san_francisco = c(503,320),
+                        seattle = c(1841,201))
+delayed_df <- data.frame(airline_id = c(1,2),
+                        los_angeles = c(62,117),
+                        phoenix = c(12,415) ,
+                        san_diego = c(20,65) ,
+                        san_francisco = c(102,129),
+                        seattle = c(305,61))
+
+#Write the data frames to the database tables created
+dbWriteTable(con, name = "airlines", value = airlines_df, append = TRUE)
+dbWriteTable(con, name = "ontime", value = ontime_df, append = TRUE)
+dbWriteTable(con, name = "delayed", value = delayed_df, append = TRUE)
+
+```
+
+### Import database into data frames
+```{r}
+
+ontime_df <- dbGetQuery(con, "
+                                    SELECT airline, los_angeles, phoenix, san_diego, san_francisco, seattle
+                                    FROM airlines, ontime
+                                    WHERE airlines.airline_id = ontime.airline_id;
+                                    ")
+delayed_df <- dbGetQuery(con, "
+                                    SELECT airline, los_angeles, phoenix, san_diego, san_francisco, seattle
+                                    FROM airlines, my_db.delayed
+                                    WHERE airlines.airline_id = delayed.airline_id;
+                                    ")
+
+ontime_df
+delayed_df
+```
+
+### Use Tidyr to tidy data
+```{r}
+library(tidyr)
+#pivot columns to row values
+tidy_ontime_df <-ontime_df %>%
+  pivot_longer(los_angeles:seattle, names_to = "city", values_to ="ontime")
+
+tidy_delayed_df <-delayed_df %>%
+  pivot_longer(los_angeles:seattle, names_to = "city", values_to ="delayed")
+
+tidy_ontime_df
+tidy_delayed_df
+```
+
+### Use Dplyr to transform data
+```{r, message=FALSE}
+library(dplyr)
+
+#join two tables into one
+airline_data_df <- inner_join(tidy_ontime_df, tidy_delayed_df, by = c("airline", "city") )
+
+#add new column with ontime ratio
+airline_data_df <- airline_data_df %>% mutate(ontime_ratio = ontime/(ontime + delayed))
+
+airline_data_df
+```
+
+### Data analysis
+
+#### Performance By City
+```{r, message=FALSE}
+library(ggplot2)
+ggplot(airline_data_df, mapping = aes(x=city, y=ontime_ratio, color=airline, shape=airline)) +
+  geom_point() 
+```
+
+The above plot shows that for each city, Alaska airlines always has better on-time performance than AM West airlines. You can also see that for the cities of San Francisco and Seattle, both airlines' on-time performance decreases with AM West airlines' performance decreasing significantly more than Alaska airlines.
+
+
+#### Overall Performance
+```{r, message=FALSE}
+by_airline <- group_by(airline_data_df, airline)
+mean_ontime <- summarise(by_airline, performance = mean(ontime_ratio))
+ggplot(mean_ontime, mapping = aes(x=airline, y=performance, fill=airline)) +
+  geom_bar(stat="identity",) 
+  
+```
+
+The above bar chart shows the overall on-time performance of each airline. Alaska airlines' overall performance ratio is higher than AM West's. This is no surprise given that Alaska performed better than AM West in every city.
+
+### Conclusion
+While it is always best to keep data "tidy" in long format, you must also consider the size of the data when saving in a database. There is a trade-off between the size of data vs time spent tidying the data for analysis. However, considering the current price of cloud data storage vs. price of labor, long format will most likely always win.
+
+One practice I learned in this exercise is the importance of standardizing data when comparing. By creating a ratio of the airlines' performances, I was able to avoid an apparent discrepancy in the *by-city* performance vs. *overall performance* due to the higher number of flights that AM West airlines completed compared to Alaska airlines.
