@@ -1,0 +1,85 @@
+---
+title: "Project 3"
+author: "Jordan Tapke"
+date: "9/28/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Scrape Job Posting Info from Indeed
+
+```{r}
+library(rvest)
+library(xml2)
+library(stringi)
+
+#first page of jobs
+page_begin <- 10 
+#last page of job #needs to be manually changed
+page_end <- 10
+#page sequence
+page_seq <- seq(from = page_begin, to = page_end, by = 10)
+
+nyc_df <- data.frame()
+
+for(i in seq_along(page_seq)) {
+  
+  url_base <- URLencode("https://www.indeed.com/jobs?q=Data Scientist&l=New York, NY")
+  #creates url for each page of results
+  url <- paste0(url_base, "&start=", page_seq[i])
+  page <- xml2::read_html(url)
+  
+  #avoids error message
+  Sys.sleep(2)
+  
+  #job title
+  job_title <- page %>% 
+    rvest::html_nodes("div") %>%
+    rvest::html_nodes(xpath = '//a[@data-tn-element = "jobTitle"]') %>%
+    rvest::html_attr("title")
+  
+  #location
+  location <- page %>%
+    rvest::html_nodes("div") %>%
+    rvest::html_nodes(xpath = '//*[@class="location accessible-contrast-color-location"]')%>%
+    rvest::html_text() %>%
+    stringi::stri_trim_both()
+
+  #company name
+  company_name <- page %>%
+    rvest::html_nodes("span")  %>%
+    rvest::html_nodes(xpath = '//*[@class="company"]')  %>%
+    rvest::html_text() %>%
+    stringi::stri_trim_both() -> company.name
+
+
+  #job info links
+  links <- page %>%
+    rvest::html_nodes("div") %>%
+    rvest::html_nodes(xpath = '//*[@data-tn-element="jobTitle"]') %>%
+    rvest::html_attr("href")
+
+  job_info <- c()
+  for(i in seq_along(links)) {
+
+    info_url <- paste0("https://www.indeed.com", links[i])
+    info_page <- xml2::read_html(info_url)
+
+    job_info[i] <- info_page %>%
+      rvest::html_nodes("div")  %>%
+      rvest::html_nodes(xpath = '//*[@class="jobsearch-jobDescriptionText"]') %>%
+      rvest::html_text() %>%
+      stringi::stri_trim_both()
+  }
+  df <- data.frame(job_title, location, company_name, job_info)
+  nyc_df <- rbind(nyc_df, df)
+}
+
+nyc_df$job_info <- gsub("[\r\n]", "", nyc_df$job_info)
+
+write.csv(nyc_df, "C:\\NYCIndeedJobs.csv")
+
+```
