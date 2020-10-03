@@ -1,0 +1,325 @@
+---
+title: "Project 2: Transformation"
+author: "Jordan Tapke"
+date: "9/27/2020"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Set 1: Which Streaming Platform Has the Best Movies?
+
+### Overview
+
+The goal for this data set was to tidy up the data and analyze which streaming provider has better movies on average.
+
+### Import and Subet Data to Needed Columns
+```{r, message=FALSE}
+#import data from github
+movies_df <- read.csv(url('https://raw.githubusercontent.com/jtapke/School-Projects/master/Project%202/Movies%20On%20Streaming%20Platorms/MoviesOnStreamingPlatforms_updated.csv'))
+
+#load required libraries
+library(tidyverse)
+
+#subset data for analysis
+myvars <- c(2,6:11)
+movies_df <- movies_df[myvars]
+head(movies_df)
+```
+
+### Standardize and Combine Ratings
+```{r}
+#bring Rotten Tomato rating to 1-10 scale
+rotten_rating <- as.numeric(sub("%","", movies_df$Rotten.Tomatoes))/10
+imdb_rating <- movies_df$IMDb
+
+#combine the the ratings from both providers into an overall rating
+overall_rating <- (rotten_rating + imdb_rating)/2
+
+#append overal rating to dataframe
+movies_df <- movies_df %>%
+  mutate(overall_rating, .after="ID" )
+
+#remove old ratings
+movies_df <- movies_df[c(1:2,5:8)]
+
+head(movies_df)
+```
+
+### Separate Movies by Provider
+```{r}
+#separate movies by provider
+netflix <- movies_df %>%
+  filter(Netflix == 1)
+
+hulu <- movies_df %>%
+  filter(Hulu == 1)
+
+prime <- movies_df %>%
+  filter(Prime.Video == 1)
+
+disney <- movies_df %>%
+  filter(Disney. == 1)
+```
+
+### Aggregate Avg. Rating of All Movies on Each Platform
+```{r}
+
+netflix_avg <- mean(netflix$overall_rating, na.rm = TRUE)
+
+hulu_avg <- mean(hulu$overall_rating, na.rm = TRUE)
+
+prime_avg <- mean(prime$overall_rating, na.rm = TRUE)
+
+disney_avg <- mean(disney$overall_rating, na.rm = TRUE)
+
+#create data frame of avg rating of each platform
+platform_ratings <- data.frame(netflix_avg,hulu_avg, prime_avg, disney_avg)
+
+#change from wide to long format for analysis
+platform_ratings <- platform_ratings %>%
+  pivot_longer(netflix_avg:disney_avg, names_to = "platform", values_to = "avg_movie_rating")
+```
+
+### Barplot of Ratings
+```{r}
+ggplot(data=platform_ratings, aes(x=reorder(platform, -avg_movie_rating), y=avg_movie_rating, fill=platform)) +
+  
+  #allows for Y value to be variable instead of "count"
+    geom_bar(stat="identity")+
+  #changes labels of axis
+    xlab("Platform") + ylab("Avg. Rating of Movies") +
+  #creates title for graph
+    ggtitle("Which Platform has the Best Movies?")+
+  #changes labels on x values
+    scale_x_discrete(labels=c("Netflix","Hulu","Dinsey+","Prime Video"))+
+  #removes legend
+    guides(fill=FALSE)+
+  #zooms in on data points to better see if there are differences
+    coord_cartesian(ylim = c(5,6.7))
+```
+
+### Summary 
+
+Based on the data provided, Netflix has the highest average movie ratings on its platform while Prime Video has the lowest average movie ratings on its platform. However the differences are barely distinguishable if the graph was not zoomed in.
+
+
+# Data Set 2: World Happiness Report - Which Factor Contributes most to Happiness?
+
+### Overview
+
+The goal for this data set was to combine and tidy up the data to analyze which factor in the world happiness report contributes most towards a country's happiness score on average.
+
+### Import CSV Files
+```{r}
+
+for(i in c(2015:2019)) { 
+ #assigning name to dataframe 
+  assign(paste0("data_", i),
+         
+         #Reading csv file from github
+         read.csv(url(paste0("https://raw.githubusercontent.com/jtapke/School-Projects/master/Project%202/World%20Happiness%20Report/", i, ".csv"))))
+}
+```
+
+
+### Subset Columns and Rename
+```{r}
+#each file has different columns and orders
+data_2015 <- data_2015[,c(4,6,9:11)]
+colnames(data_2015) <-c( "total", "gdp", "freedom", "corruption", "generosity")
+
+data_2016 <- data_2016[,c(4,7,10:12)]
+colnames(data_2016) <-c( "total", "gdp", "freedom", "corruption", "generosity")
+
+data_2017 <- data_2017[,c(3,6,9,11,10)]
+colnames(data_2017) <-c( "total", "gdp", "freedom", "corruption", "generosity")
+
+data_2018 <- data_2018[,c(3:4,7,9,8)]
+colnames(data_2018) <-c( "total", "gdp", "freedom", "corruption", "generosity")
+
+data_2019 <- data_2019[,c(3:4,7,9,8)]
+colnames(data_2019) <-c( "total", "gdp", "freedom", "corruption", "generosity")
+```
+
+### Convert Data Types
+```{r, warning=FALSE}
+#convert to numeric so dataframes can be combined
+data_2015[, 2:ncol(data_2015)] <- sapply(data_2015[, 2:ncol(data_2015)], as.numeric)
+data_2016[, 2:ncol(data_2016)] <- sapply(data_2016[, 2:ncol(data_2016)], as.numeric)
+data_2017[, 2:ncol(data_2017)] <- sapply(data_2017[, 2:ncol(data_2017)], as.numeric)
+data_2018[, 2:ncol(data_2018)] <- sapply(data_2018[, 2:ncol(data_2018)], as.numeric)
+data_2019[, 2:ncol(data_2019)] <- sapply(data_2019[, 2:ncol(data_2019)], as.numeric)
+```
+
+### Combine into One Dataframe
+```{r}
+library(tidyverse)
+
+#new data frame
+happiness_report <- data.frame(bind_rows(data_2015,data_2016,data_2017, data_2018, data_2019))
+```
+
+### Calculate Factor's Ratio of Total Score
+```{r, message=FALSE, warning=FALSE}
+library(data.table)
+#calculate sum of each factor
+total <- sum(happiness_report$total)
+gdp <- sum(happiness_report$gdp)
+freedom <- sum(happiness_report$freedom)
+corruption <- sum(happiness_report$corruption, na.rm = TRUE)
+generosity <- sum(happiness_report$generosity)
+#create data frame
+happiness_contributors <- data.frame(total,gdp,freedom, corruption, generosity)
+#calculate ratio of total score
+happiness_contributors <- happiness_contributors %>%
+  mutate_at(vars(-total), funs(. / total)) %>%
+  select(gdp, freedom, corruption, generosity)
+```
+
+### Pivot into Long Format Data Frame
+```{r}
+
+happiness_contributors_long <- happiness_contributors %>%
+  pivot_longer(gdp:generosity, names_to = "factor", values_to = "percent")
+happiness_contributors_long
+```
+
+### Barplot of Contributors to Happiness
+```{r, message=FALSE}
+require(scales)
+ggplot(data=happiness_contributors_long, aes(x=reorder(factor, -percent), y=percent, fill=factor)) +
+    geom_bar(stat="identity")+
+    xlab("Factor") + ylab("Percent") +
+    ggtitle("Average Percent Contributed to Happiness Score")+
+    scale_x_discrete(labels=c("GDP","Freedom","Absence of Corruption","Generosity"))+
+    scale_y_continuous(labels=percent_format())+
+    guides(fill=FALSE)
+```
+
+### Summary 
+
+Based on the data provided, GDP contributes the most towards a country's happiness score on average for all observations from 2016-2019. It contributes on average ~19% towards the happiness score. This is almost double than the second highest contributor, freedom, which was around ~7.5% of the happiness score.
+
+
+# Dataset 3: Broadband Availibility in New York State
+
+### Overview
+The goal of this data was to find out which municipalities have lower rates of broadband and the number of housing units affected. However, I though this did not provide much insight so I also imported another data set of median income by county level to see if there was a correlation between a counties median income and its access to broadband internet.
+
+### Import and Subet Data to Only Needed Columns
+```{r, message=FALSE}
+#load required libraries
+library(tidyverse)
+
+#import data from github
+broadband_df <- read.csv(url('https://raw.githubusercontent.com/jtapke/School-Projects/master/Project%202/Broadband%20Availability%20By%20Municipality/Broadband_Availability_By_Municipality.csv'))
+
+#add-on data set to bring more meaning to the original data set
+income_county_df <- read.csv(url('https://raw.githubusercontent.com/jtapke/School-Projects/master/Project%202/Broadband%20Availability%20By%20Municipality/Income_ny_2014.csv'))
+
+#subset broadband data for analysis
+myvars <- c(7,2,4,20)
+broadband_df <- broadband_df[,myvars]
+colnames(broadband_df)<- c("county", "town", "population", "broadband_rate")
+
+#subset income data for analysis
+myvars <- c(2,246)
+income_county_df <- income_county_df[,myvars]
+income_county_df <- tail(income_county_df, -1)
+income_county_df <- head(income_county_df, -1)
+
+
+# tidy up county column
+income_county_df <- extract(income_county_df, "NAME", into = c("county"),  regex = "(.*)\\sCounty.*")
+colnames(income_county_df)<- c("county", "median_income")
+```
+
+### Total Population for Each County
+```{r, message=FALSE}
+#total population for each county
+total_pop_df <- broadband_df %>%
+  group_by(county) %>%
+  summarise(pop = sum(population))
+
+#remove unwanted variables
+remove.list <- paste(c(",", "n/a"), collapse = "|")
+total_pop_df <- total_pop_df %>%
+  filter(!str_detect(total_pop_df$county, remove.list))
+```
+### People With Broadband Access per Town
+```{r}
+#create new variable: access_per_town
+access_per_town <- #create new variable: access_per_town
+access_per_town <- broadband_df$population * (broadband_df$broadband_rate/100)
+broadband_df <- cbind(broadband_df, access_per_town )
+```
+### Broadband Access Rate per County
+```{r, message=FALSE}
+#total access for each county
+access_per_county <- broadband_df %>%
+  group_by(county) %>%
+  summarise(access = sum(access_per_town))
+
+#remove unwanted variables
+remove.list <- paste(c(",", "n/a"), collapse = "|")
+access_per_county <- access_per_county %>%
+  filter(!str_detect(access_per_county$county, remove.list))
+
+access_per_county <- cbind(access_per_county, total_pop_df$pop)
+
+#create new variable: broadband_rate
+broadband_rate <- access_per_county$access / access_per_county$total_pop
+access_per_county <- cbind(access_per_county, broadband_rate )
+```
+
+### Join The Two Data Frames
+```{r}
+#join county data columns
+county_inc_bb <- left_join(income_county_df, access_per_county, by = "county" )
+
+#clean up data frame
+median_inc_num <- as.numeric(county_inc_bb$median_income)
+county_inc_bb <- cbind(county_inc_bb, median_inc_num)
+county_inc_bb <- county_inc_bb[,c(1,5,6)]
+```
+
+### Scatterplot
+```{r, message=FALSE}
+ggplot(county_inc_bb, aes(median_inc_num, broadband_rate))+
+  geom_point(color='steelblue', size=2)+
+  geom_smooth(method = "loess", se = TRUE, color="brown3")+
+  xlab("County Median Income")+ylab("Rate of Access")+ 
+  ggtitle("Counties Rate of Broadband  Internet Access vs. Median Income")+
+  scale_x_continuous(labels=scales::dollar_format())+
+  scale_y_continuous(labels=scales::percent_format())
+```
+
+### Number of People with Broadband Internet
+```{r}
+popwo_access <- as.numeric(summarise(broadband_df, sum(population*(1-(broadband_rate/100)))))
+
+popwo_access
+```
+
+### Summary 
+
+Based on the data, there seems to be very little correlation between a county's median income and it's rate of access to broadband. What is still surprising is there there are over 3 million people in NYS who do not have access to broadband internet.
+
+
+# References
+
+Bhatia, R. (2020, May 22). Movies on Netflix, Prime Video, Hulu and Disney+. Retrieved October 03, 2020, from https://www.kaggle.com/ruchi798/movies-on-netflix-prime-video-hulu-and-disney
+
+Network, S. (2019, November 27). World Happiness Report. Retrieved October 03, 2020, from https://www.kaggle.com/unsdsn/world-happiness
+
+O. (2014, December 29). Broadband Availability By Municipality. Retrieved October 03, 2020, from https://data.ny.gov/Economic-Development/Broadband-Availability-By-Municipality/sjc6-ftj4
+
+U. (2019). SELECTED ECONOMIC CHARACTERISTICS. Retrieved October 03, 2020, from https://data.census.gov/cedsci/table?q=ACSDP1Y2019.DP03+New+York
