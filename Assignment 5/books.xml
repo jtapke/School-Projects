@@ -2,7 +2,7 @@
 <books> 
 <book>
     <name>To Kill a Mockingbird</name>
-    <authors>Harper Lee	</authors>
+    <author(s)>Harper Lee</author(s)>
     <category>Literature and Fiction</category>
     <price>18.99</price>
   </book>
