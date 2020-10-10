@@ -1,0 +1,67 @@
+---
+title: "Assignment 5: Working with XML and JSON in R"
+author: "Jordan Tapke"
+date: "10/8/2020"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: true
+---
+## Description
+The assignment required saving information on three different books into a "hand created" HTML, XML, and JSON files. Once files were created, pull the information into an R data frame.
+
+## Overview
+I created the files "by hand" in Windows notebook. For the HTML book data, I saved the data into an HTML table. This proved rather easy to import into an R data frame. For the XML book data, I saved each book within a <book> element which allowed the data to be easily pulled into a data frame via the xmlToDataFrame function from XML package. For the JSON book data, I saved book objects in an array.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+```{r, message=FALSE}
+library(tidyverse)
+library(XML)
+library(textreadr)
+library(RJSONIO)
+library(rvest)
+library(httr)
+library(knitr)
+```
+
+
+## HTML
+```{r, results='asis'}
+html_df <- read_html(url("https://raw.githubusercontent.com/jtapke/School-Projects/master/Assignment%205/books.html")) %>%
+  html_node("table") %>%
+  html_table()
+kable(html_df)
+```
+
+## XML
+```{r, results='asis'}
+url <- "https://raw.githubusercontent.com/jtapke/School-Projects/master/Assignment%205/books.xml"
+res <- GET(url)
+data <- xmlParse(content(res, "text"))
+xml_df <- xmlToDataFrame(data)
+kable(xml_df)
+```
+
+## JSON
+```{r, results='asis'}
+json_file <- fromJSON("https://raw.githubusercontent.com/jtapke/School-Projects/master/Assignment%205/books.json", flatten = T)[[1]]
+json_df <- enframe(unlist(json_file))
+json_df <- json_df %>%
+  group_by(name) %>%
+  mutate(row = row_number()) %>%
+  tidyr::pivot_wider(names_from = name, values_from = value) %>%
+  select(-row)
+kable(json_df)
+```
+
+## Comparison
+All of the data frames are practically identically. The only difference was the XML data frame: the column names "Author(s)" & "Price(USD)" had to become "Authors" & "Price". This is because XML naming rules do not allow parentheses in elements.
+
+## Conclusion
+The only trouble with importing the data from these web formats is that the author(s) column is not considered tidy because multiple authors were separated by a comma. However, if this was made into "long" format it would take up considerable more memory which is not great for data that is meant to be downloaded all of the time.
