@@ -1,0 +1,5 @@
+{"books":[
+	{"Name":"To Kill a Mockingbird", "Author(s)":"Harper Lee", "Category":"Literature & Fiction", "Price(USD)":"18.99" },
+	{"Name":"Harry Potter And The Sorcerer's Stone", "Author(s)":"J.K. Rowling", "Category":"Children's Books", "Price(USD)":"19.06" },
+	{"Name":"Automated Data Collection with R: A Practical Guide to Web Scraping and Text Mining", "Author(s)":"Simon Munzert, Christian Rubba, Peter MeiSner, Dominic Nyhuis", "Category":"Databases and Big Data", "Price(USD)":"60.44" }
+]}

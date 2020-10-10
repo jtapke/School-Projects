@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<books> 
+<book>
+    <name>To Kill a Mockingbird</name>
+    <authors>Harper Lee	</authors>
+    <category>Literature and Fiction</category>
+    <price>18.99</price>
+  </book>
+<book>
+    <name>Harry Potter And The Sorcerer's Stone</name>
+    <authors>J.K. Rowling</authors>
+    <category>Children's Books</category>
+    <price>19.06</price>
+  </book>
+<book>
+    <name>Automated Data Collection with R: A Practical Guide to Web Scraping and Text Mining</name>
+    <authors>Simon Munzert, Christian Rubba, Peter MeiSner, Dominic Nyhuis</authors>
+    <category>Databases and Big Data</category>
+    <price>60.44</price>
+  </book>
+</books>
