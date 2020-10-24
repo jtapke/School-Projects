@@ -1,0 +1,56 @@
+---
+title: "Assignment 6 - Web APIs"
+author: "Jordan Tapke"
+date: "10/21/2020"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: true  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Overview
+ The goal of this assignment was to choose one of the New York Times APIs, construct an interface in R to read in the JSON data, and transform it into an R data frame.
+
+I used the GET function from  *httr* to read in the JSON data from the NYT API. I then used *RJSONIO* and *tidyverse* packages to help transform the data from JSON list into a tidy R data frame. 
+
+### Load Needed Libraries
+```{r, message=FALSE}
+library(tidyverse)
+library(RJSONIO)
+library(httr)
+```
+
+### Read in JSON Data Using API Key
+```{r}
+res <- GET("https://api.nytimes.com/svc/books/v3/lists/current/hardcover-fiction.json?api-key=rPZYH1OQvEnkwrDWG0VcKTqr8ENYHtIz")
+```
+
+### Transform JSON into R Data Frame
+```{r}
+data <- fromJSON(rawToChar(res$content))
+
+data <- data$results
+
+data <- data$books
+
+json_df <- enframe(unlist(data))
+
+books_df <- json_df %>%
+  group_by(name) %>%
+  mutate(row = row_number()) %>%
+  tidyr::pivot_wider(names_from = name, values_from = value) %>%
+  select(-row)
+
+books_df <- books_df[1:15,]
+
+books_df
+```
+
+### Conclusion
+It was important to convert the JSON data into a character list first using *rawToChar* so that I could use *fromJSON* function to de-serialize it into R objects. doing this allowed me to convert the data into a tidy R data frame.
