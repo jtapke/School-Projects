@@ -1,0 +1,52 @@
+---
+title: "Recommender Systems Analysis"
+author: "Jordan Tapke"
+date: "11/3/2020"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: true  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Spotify Daily Mixes
+Spotify compiles six different playlists divided by genre, called Daily Mixes, that are constantly updated based on your listening habits. Daily Mixes are a combination of tunes from artists you listen to on the regular and other material you might not be as familiar with.
+
+## Scenario Design Analysis
+
+### Who are the target users?
+
+The target users of this recommender system are users who are not able to decide which music they want to listen to.
+
+### What are the key goals of the user?
+
+The key goal of the user is to find music which they would enjoy listening to based on one of the 6 genres they choose from.
+
+### How can the recommender system help them accomplish those goals?
+The recommender system can help the user accomplish this goal by creating a playlist of songs for the user to listen in which songs are chosen based on the users past listening history.
+
+## Reverse Engineering the System
+Info on Spotify's recommender systems found here: https://medium.com/s/story/spotifys-discover-weekly-how-machine-learning-finds-your-new-music-19a41ab76efe
+
+Spotify uses a combination of models to create these playlists:
+
+1. Collaborative Filtering models
+
+Spotify uses implicit feedback from the user with the stream counts having the most weight in this models. This model uses matrix math with an output of a user vector and a song vector. The vectors are then compared between all spotify users to find which songs are most similiar between users.
+
+2. Natural Language Processing (NLP) models
+
+On top of the Collaborative Filtering models Spotify employs NLP on data from track metadata, news, blogs and other text avaible on the internet. It buckets the data into "Top Terms" which are updated daily and then weighted based on the probability that someone will describe the music or artist with the term.
+
+3. Audio models
+
+The third model that Spotify uses is a raw audio model. This helps recommend newly released songs to users as the other two models are not as robust in this situation. This model uses neural networks, which concatenate time-frequency representations of audio frames to form a spectrogram. The output is an understanding of the including time signature, key, mode, tempo, and loudness.
+
+## My Personal Recommendations
+
+Since this Recommender system is so robust, I cannot provide any personal recommendations on the system itself. However, from a business perspective I would recommend spotify monetize these recommendations. They can still use the same recommender models but allow artists to pay to be at the top of these playlists which would give them more oppurtunities to be heard, while still assisting the user with their goal.
