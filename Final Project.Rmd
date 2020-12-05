@@ -1,0 +1,228 @@
+---
+title: "Linear Regression of Business News Headlines Sentinment and Stock Market Performance"
+author: "Jordan Tapke"
+date: "11/30/2020"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+This project performs a linear regression using an average daily sentiment analysis score on business news headlines as the independent variable and the percent difference in closing and opening price of various index ETFs as the dependent variable. The sentiment analysis is performed using the "afinn" lexicon which gives each word a sentiment score on a scale of -5 to 5, indicating negative sentiment to positive sentiment. The sentiment scores are summed as a average score on all the headlines for each day. The index ETFs performances are used as proxies for the S&P 500 and the different sectors of the stock market.
+
+A multiple linear regression is then performed incorporating the release of weekly unemployment claims data as another independent variable in the performance of the S&P 500 proxy.
+
+## Load Needed Libraries
+
+```{r, message=FALSE}
+library(quantmod)
+library(TTR)
+library(rvest)
+library(xml2)
+library(stringi)
+library(tidytext)
+library(dplyr)
+library(stats)
+library(ggplot2)
+library(gridExtra)
+library(XML)
+library(httr)
+library(sjPlot)
+```
+
+## Scrape Headlines from Reuters
+
+```{r, eval=FALSE}
+#first page of jobs
+page_begin <- 1501
+#last page of job #needs to be manually changed
+page_end <- 1600
+#page sequence
+page_seq <- seq(from = page_begin, to = page_end, by = 1)
+
+#Webscraping news articles
+for(i in seq_along(page_seq)) {
+
+  url_base <- URLencode("https://www.reuters.com/news/archive/businessnews?view=page&page=")
+  #creates url for each page of results
+  url <- paste0(url_base, page_seq[i],"&pageSize=10")
+  page <- xml2::read_html(url)
+
+  #avoids error message
+  Sys.sleep(2)
+
+  #headlines
+  headlines <- page %>%
+    rvest::html_nodes(xpath = "//*[contains(@class,'column1')]//h3[@class='story-title']") %>%
+    rvest::html_text() %>%
+    stringi::stri_trim_both()
+
+  #date
+  date <- page %>%
+    rvest::html_nodes(xpath = '//span[@class="timestamp"]')%>%
+    rvest::html_text() %>%
+    stringi::stri_trim_both()
+
+  df <- data.frame(headlines, date)
+  headlines_df <- rbind(headlines_df, df)
+}
+```
+
+## Tidy Headline Data
+
+```{r, message=FALSE}
+#reading from cvs to save time web-scraping. Can be performed with out this line
+headlines_df <- read.csv(url("https://raw.githubusercontent.com/jtapke/School-Projects/master/headlines.csv"))
+#removes duplicates entries that may have been created during web-scraping
+unique_headlines <- unique(headlines_df)
+
+#remove headlines with out full day of news reporting
+unique_headlines2 <-unique_headlines[-c(1,2,3), ]
+
+#turn each word into an observation with date tagged to it.
+headline_words <- unnest_tokens(unique_headlines2, word, headlines)
+
+#word sentiment analysis
+headline_sentiment <- inner_join(headline_words,get_sentiments("afinn"), by = "word")
+
+#average sentiment value for each day's business headlines
+daily_sentiment <- group_by(headline_sentiment, date)%>%
+  summarise(mean(value))
+
+#change to date format same as the date in quantmod library
+daily_sentiment$date <- as.Date(daily_sentiment$date , format = "%b %d %Y")%>%
+  format("%Y-%m-%d")
+```
+
+## Get Historical Index and Sector Performance
+
+```{r, message=FALSE}
+#get historical S&P 500 prices
+Sys.setenv(TZ = "UTC")
+
+#using index ETFs as proxies for market and sector performance
+tickers <- c("SPY", "XLP", "XLV", "XLF", "XLK", "XLC", "XLU")  
+
+dataEnv <- new.env()
+#quantmod request: default source is yahoo finance
+getSymbols(tickers, from = "2019-11-06", to = "2020-11-05",  env=dataEnv)
+
+#turn historical stock performance data into a dataframe
+stocks <- eapply(dataEnv, as.data.frame)
+```
+
+## Combine Historical Performance and Sentiment Score into One Dataframe.
+
+```{r}
+#initialize dataframe for for loop with avg .daily sentiment score
+sentiment_sectors <- daily_sentiment
+
+#loop over all the performance dataframes and find the % difference between closing and opening price
+for(j in stocks){
+  colnames(j) <- c("open", "high", "low", "close", "volume", "adjusted")
+  x <- cbind(date = rownames(j), j)
+  rownames(x) <- 1:nrow(x)
+  x$percent <- round(((x$close-x$open)/x$open)*100,2)
+  x <- select(x, date, percent)
+  sentiment_sectors <- inner_join(sentiment_sectors, x, copy = TRUE, by = "date")
+}
+
+#rename column names
+colnames(sentiment_sectors) <- c("date", "avg_sentiment_score", "SPY_change", "XLP_change", "XLV_change", "XLF_change", "XLK_change", "XLC_change", "XLU_change")
+```
+
+## Create Linear Regression Model
+
+### Check for Model Assumptions
+
+1. Independence: Each Daily Observations are independent of each other
+
+2. Linearity: There doesn't seem to be any curvature to the plots
+
+3. Homoscedasticity: The residuals look to be clustering which could mean it is not reasonable to use a linear model
+
+Based on the initial plots, it is unclear whether there is statistically
+significant evidence that the slope parameter is different from zero.
+
+```{r}
+for(i in colnames(sentiment_sectors[3:9])){
+  m1  <-  lm(substitute(i ~ avg_sentiment_score, list(i = as.name(i))), data = sentiment_sectors)
+  
+  print(i)
+  print(summary(m1))
+  
+#Linearity  
+  p1 <- ggplot(data = sentiment_sectors, aes_string(x = "avg_sentiment_score", y = i))+
+   geom_point()
+  
+#Homoscedasticity  
+  p2 <- ggplot(data = m1, aes(x = .fitted, y = .resid)) +
+   geom_point() +
+   geom_hline(yintercept = 0, linetype = "dashed") +
+   xlab("Fitted values") +
+   ylab("Residuals")
+  grid.arrange(p1, p2, nrow = 1)
+}  
+```
+
+Based on the results, the model performs poorly. There are also no improvements in the model for different sectors of the stock market.
+
+## Add Weekly Unemployment Claims to Model
+
+```{r, warning=FALSE}
+#read the xml file
+xmldoc <- read_xml(url("https://raw.githubusercontent.com/jtapke/School-Projects/master/r539cy.xml"), encoding = "utf-8", as_html = FALSE)
+
+#parse date and add to dataframe
+date <- xmldoc %>% 
+               xml_find_all(".//weekEnded") %>% 
+               xml_text()
+
+weekly_claims_df <- data.frame(date)
+
+#parse the # of intial weekly claims and add to Dataframe
+weekly_claims <- xmldoc %>% 
+               xml_find_all(".//InitialClaims//SA") %>% 
+               xml_text()
+
+weekly_claims_df[2] <- data.frame(weekly_claims)
+
+#convert claims to number type
+weekly_claims_df$weekly_claims <- as.numeric(gsub(",", "", weekly_claims_df$weekly_claims))
+  
+#change to date format same as the date in other dataframe
+weekly_claims_df$date <- as.Date(weekly_claims_df$date , format = "%m/%d/%Y")%>%
+  format("%Y-%m-%d")
+
+#add five days because data is released on Thursday for prev. week data
+weekly_claims_df$date <- as.Date(weekly_claims_df$date) + 5
+
+#convert to date type
+sentiment_sectors$date <- as.Date(sentiment_sectors$date)
+
+#join the two dataframes
+sentiment_sectors2 <- inner_join(sentiment_sectors[1:3], weekly_claims_df, copy = TRUE, by = "date")
+
+#run model
+model_df <- lm(SPY_change~ avg_sentiment_score + as.numeric(weekly_claims), data = sentiment_sectors2)
+
+#summary statistics
+tab_model(model_df)
+
+#plot model
+par(mfrow = c(2,2))
+plot(model_df)
+```
+
+While the MLR performs slightly better with the addition of the unemployment data, it is still not statistically significant.
+
+## Conclusion
+
+The are many ways to improve the models. One improvement includes adding other important economic indicators such as GDP and inflation to the MLR. However, given the complexity of the dependent variable there would be a higher chance improvement with a more complex model other than linear regressions.
